@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Interactive Floating & Splitting Mask</title>
+
+    <!-- 키치하고 볼드한 웹 폰트 불러오기 (Fugaz One, Montserrat) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&family=Montserrat:wght@800;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #39FF14;
+            font-family: sans-serif;
+            user-select: none;
+        }
+
+        /* 1번 레이어: 검은색 배경 및 네온 연두색 아스키 아트 */
+        #layer1 {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        #layer1 pre {
+            font-family: monospace;
+            font-size: clamp(3px, 0.95vw, 10px);
+            line-height: 1.0;
+            color: #39FF14;
+            white-space: pre;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* 2번 레이어: Canvas */
+        #layer2Canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            cursor: pointer;
+        }
+
+        /* 컨트롤 패널 (속도 조절 + 일시정지 + 리셋 버튼) */
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 10px 18px;
+            border-radius: 12px;
+            color: #39FF14;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls label {
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .controls input[type="range"] {
+            accent-color: #39FF14;
+            cursor: pointer;
+        }
+
+        /* 컨트롤 버튼 공통 스타일 */
+        .ctrl-btn {
+            background: #39FF14;
+            color: #000;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 900;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .ctrl-btn:hover {
+            background: #ffffff;
+        }
+
+        /* 우측 하단 소제목 */
+        .guide-text {
+            position: fixed;
+            bottom: 40px;
+            right: 50px;
+            z-index: 3;
+            color: #000000;
+            text-align: right;
+            pointer-events: none;
+            line-height: 1.15;
+        }
+
+        .guide-text .main-title {
+            font-family: 'Fugaz One', 'Impact', sans-serif;
+            font-size: clamp(1.5rem, 3vw, 2.5rem);
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: block;
+        }
+
+        .guide-text .sub-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: clamp(0.85rem, 1.5vw, 1.2rem);
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 6px;
+            display: block;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1번 레이어 (네온 연두색 아스키 아트 / 검은색 배경) -->
+    <div id="layer1">
+        <pre>
+                                                                                                                                   +*                         
+                                                                       #                                                         *==   #+                     
+                                                                      %+#                                                       +==+  +=+                     
+                                                                    +#*+*%                                                     +=-* *=-=*                     
+                                                                    +#++*   *+#                                               +--+ +=-=*                      
+                                                                   *+*=+#  ++*%                                             +=--+*+=-=+    #+==               
+                                                                   ++=+*  +++#                                             +=-- +=--=    *+=-=+               
+                                                                  +===+* +=+*#                                           ++--=*+=--=   *+=--=*                
+                                                                  +==+*#+=++*  *#                                      *+=--*+=---   *+=--+*                  
+                                                                 +--=+*==++* +++#                                     ++--+++---+  ++=---=*                   
+                                                                 =-==+-=++ *=++*#                                   =+---++---+ #++=---=+                     
+                                                                =--==-=+++==+++*                                  +*---++--===+*+=----=    +===*              
+                                                               =--=---==--=+++*%                                +*--=*+----+**=----=+  *+==--=                
+                                                              +-:--:-==--=++++==++                            +*--+*=---=**+=----= **++==--=                  
+                                                              -:--:-----+==-==+++*                          **-=++---+**+=-----=***+==-===                    
+                                                             =::-:--:-==--==++++*#                       **+=+*=-=++*+=----=+***====--=                       
+                                                            =-:-:--:-=---=+++++===++#              +=-=##=+*+-=+**+---=+**#*+===----=                         
+                                                           -::::::::---=+=---==+++++*           +=---**+*+=++*+===+***#*+===----==+++===                      
+                                                          :::::::::------===++++****          +=-:-****==+++=++****+======+++***++======                      
+                                                         -::::::::::---==+==--=====++#      ==--+%%%#****+****++=++****###**+=====+===                        
+                                                         =:::::::::::----==+++***+++*#    ==++#%%####*##*******####**+++++++++===+=                           
+                                                          -::::::::::::-----=======+*  --=###%%%%%#########*+++++++++**++++++=====                            
+                                                         ::-::::::::::::::-----====++-=*%%%@@@%%##****+++++++++++++++++==========                             
+                                                         -::::::::::::::::::---=====*%%@@@@%%%##******+++++++++++++******++++==+                              
+                                           -::::=          :::::::::::::::-------=#%@@@@@@%%###*****++++=+++++++++==========+++                               
+                                        -::=+#**+=--=       -:::::::::::--------=@@@@@@@%%###*******++++++++===++**++++++==+++                                
+                                       --+#%@@@@#**#=---    -:::::-----------:=%@@@@@@@%%%####******+++===++++++=====++++++                                   
+                                       =*%@@%%#**+======-----::::::--====-:=#@@@@@@@@@@%%%#####***+++==+++++==++++++====+=*                                   
+                                      *@@%#%%%%%%%%%%%##*+=--:::::::::::-#@@@@@@@@@@@@%%%%#####**+=+*+++==+++++==++++++=+                                     
+                                     +@@@%%%%%%%%@%%####*++==----::::=%@@@@@@@@@@@@@@%%%%%#####***+++=+++++==++++===+++                                       
+                                     %      %%%%%%##**#****+++++=+++*#@@@@@@@@@@@@@%%%%%%%%###***+++++++=+++++=++++=+++                                       
+                                              %%%%%####%#######**###%@@@@@@@@@@%#%%%%%%%%%%###****++++++++=+++++++++*                                         
+                                               %%%%%%%%%%%%%%%%%%%%@@@@@@@@@@@%%#%%%%%%%%%%##****+=++++++++==++*++                                            
+                                               *#%%%%%%@%%%%%%%%%@@@@@@@@@@@@@@%%%%%%%%%%%##*****++==+++++++=++*                                              
+                                                 #%%%%%%@@@@@@@@@@@@@@@@@@@@@@@%%%%%%%%%%%##******++==+++++                                                   
+                                                 ##%%%%%%%%%%%%%%@@@@@@@@@@@@%%%%%%%%%%%%###*****++++==++                                                     
+                                                  #%%%%%%%%%%%%%%%%%@@@@@@@@@%###############****+=+***                                                       
+                                                   %%%%%%%%%%%%%%%%%%%@@@@@@@@%**+***########****++*                                                          
+                                                     %##%%%%%%%%%%%%%%%%@@@@@@@%*+=++**#####****                                                              
+                                                       %%##%%%%%%%%%%%%%%@@@@@@@@*--+**#####*                                                                 
+                                                         ###%%%%%%%%%%%%%%@@@@@@@%+--=+*+=+                                                                   
+                                                           ###%%%%%%%%%%%%@@@@@@@@%=====++                                                                    
+                                                            ###%%%%%%%@@@@@@@@@@@@@%%                                                                         
+                                  ==========+==========-----:-%@%%%%@@@@@@@@@@@@@@@%%                                                                         
+                                  +=========-------=====++=::*%@@@%%%%@@@@@@@@@@@@@%%@                                                                        
+                                     +++=++******+++==--=++==*%@@%%%%%@@@@@@@@@@%%%%%%                                                                        
+                                      +****++=====----=##@@@@@@@%#*+%@@@@@@@@@@%%%%%%##                                                                       
+                                     *++++++======++++@@@@@%@@%#*+*@@@@@@@@@%%%%%%%%%##*#                                                                     
+                                      ++++*=+********+@@@@@==+====@#@@@@#%%%%%%%%%%%%##***#                                                                   
+                                         *#####**+====%@@@%=++++=-=@@@@###%%%%%%%%%%%%##****#                                                                 
+                                        #*++++++===+**%@##=+++*=-=++****###%%%%%%%%%%%##*+****#                                                               
+                                         ***+++==*****+=#+*+++=--+++****######%%%%%%%%%##*+***+*##                                                            
+                                         #***++####*+====****---++++***########%%%%%%%%%###+******#*                                                          
+                                             %%#*+++++=+****==-+*+**+**########%%%%%%%%%%###++*##******                                                       
+                                             *******++*##*+====****=+**########%%%%%%%%%%####++*###****#                                                      
+                                              #******###+++===****+=+***#**#####%%%####%%%####****###****                                                     
+                                                    ****++++==###+==+******####%%%%#*##%%%###%#******##                                                       
+                                                    #***+++++##*++==+******#####%%%***##%%%###%%*****##                                                       
+                                                      #*****#***+++=+##****#####%%%#**##%%%####%%######                                                       
+                                                             #****+++####**##%##%%#######%%%####%%@#@                                                         
+                                                               #*#*#  %######%%%%%#######%%%%%#%%%                                                            
+                                                                           @%%%%%%#%###%%%  @%%                                                               
+                                                                             @@@                                                                              </pre>
+    </div>
+
+    <!-- 2번 레이어 (Canvas) -->
+    <canvas id="layer2Canvas"></canvas>
+
+    <!-- 슬라이드 바 & 정지/리셋 버튼 컨트롤 패널 -->
+    <div class="controls">
+        <button id="pauseBtn" class="ctrl-btn">PAUSE</button>
+        <button id="resetBtn" class="ctrl-btn">RESET</button>
+        <label for="speedControl">SPEED</label>
+        <input type="range" id="speedControl" min="0" max="10" value="3" step="0.5">
+    </div>
+
+    <!-- 우측 하단 문구 -->
+    <div class="guide-text">
+        <span class="main-title">CLICK EVERYWHERE</span>
+        <span class="sub-title">AND POP THE CIRCLE!</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('layer2Canvas');
+        const ctx = canvas.getContext('2d');
+        const speedInput = document.getElementById('speedControl');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        let holes = [];
+        let particles = [];
+        let colorfulCircles = [];
+        let globalSpeedMultiplier = parseFloat(speedInput.value);
+        let isPaused = false;
+
+        // 알록달록 원용 키치 컬러 팔레트
+        const popColors = ['#FF1493', '#00FFFF', '#FFD700', '#FF4500', '#9D00FF', '#FF69B4', '#00FF7F'];
+
+        // AudioContext 생성 (알 깨지는 소리 합성용)
+        let audioCtx = null;
+
+        function playEggCrackSound() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+
+                // 노이즈 노드 생성 (껍질의 바삭하는 고주파 파편음)
+                const bufferSize = audioCtx.sampleRate * 0.05; // 0.05초 길이
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                // 하이패스 필터로 날카로운 깨짐 소리 강조
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 1800;
+
+                // 볼륨 감쇄 (Envelope)
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                // '딱' 하는 순간 타격음 추가 (삼각파 오실레이터)
+                const osc = audioCtx.createOscillator();
+                const oscGain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(120, now + 0.03);
+
+                oscGain.gain.setValueAtTime(0.6, now);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+                osc.connect(oscGain);
+                oscGain.connect(audioCtx.destination);
+
+                noise.start(now);
+                noise.stop(now + 0.05);
+                osc.start(now);
+                osc.stop(now + 0.03);
+            } catch (e) {
+                console.log('Audio playback prevented', e);
+            }
+        }
+
+        // 속도 조절
+        speedInput.addEventListener('input', (e) => {
+            globalSpeedMultiplier = parseFloat(e.target.value);
+        });
+
+        // 정지 / 재생 토글
+        pauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? 'PLAY' : 'PAUSE';
+            pauseBtn.style.background = isPaused ? '#ffffff' : '#39FF14';
+        });
+
+        // 초기화 (RESET) 버튼
+        resetBtn.addEventListener('click', () => {
+            holes = [];
+            particles = [];
+            colorfulCircles = [];
+        });
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // 정규분포 (중앙 집중 분포)
+        function randomGaussian() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        // 계란(Egg) 그리기 함수
+        function drawEgg(cx, cy, width, height) {
+            const topY = cy - height * 0.5;
+            const bottomY = cy + height * 0.5;
+            const leftX = cx - width * 0.5;
+            const rightX = cx + width * 0.5;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, topY);
+
+            // 우측 곡선
+            ctx.bezierCurveTo(cx + width * 0.28, topY, rightX, cy - height * 0.1, rightX, cy + height * 0.15);
+            ctx.bezierCurveTo(rightX, cy + height * 0.38, cx + width * 0.32, bottomY, cx, bottomY);
+
+            // 좌측 곡선
+            ctx.bezierCurveTo(cx - width * 0.32, bottomY, leftX, cy + height * 0.38, leftX, cy + height * 0.15);
+            ctx.bezierCurveTo(leftX, cy - height * 0.1, cx - width * 0.28, topY, cx, topY);
+
+            ctx.closePath();
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+        }
+
+        // 흰색 파티클 생성 함수
+        function createParticles(x, y) {
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 6 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 5 + 2,
+                    alpha: 1,
+                    color: '#FFFFFF'
+                });
+            }
+        }
+
+        // 알록달록한 원 5개 생성 함수 (작은 크기)
+        function spawnColorfulCircles(spawnX, spawnY) {
+            for (let i = 0; i < 5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * 30 + 5;
+                const speed = (Math.random() * 2 + 1);
+
+                colorfulCircles.push({
+                    x: spawnX + Math.cos(angle) * dist,
+                    y: spawnY + Math.sin(angle) * dist,
+                    radius: Math.random() * 4 + 3, // 3px ~ 7px
+                    vx: (Math.random() - 0.5) * speed * 2,
+                    vy: (Math.random() - 0.5) * speed * 2,
+                    color: popColors[Math.floor(Math.random() * popColors.length)]
+                });
+            }
+        }
+
+        // 메인 프레임 애니메이션
+        function animate() {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // 1. 2번 레이어 바탕 덮기 (네온 연두색)
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#39FF14';
+            ctx.fillRect(0, 0, w, h);
+
+            // 좌측 상단 포스터 타이포
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'left';
+
+            // 메인 타이틀
+            ctx.font = '900 clamp(2.2rem, 5vw, 4.2rem) "Fugaz One", "Impact", sans-serif';
+            ctx.fillText('THE EGG IS THE WORLD', 50, 85);
+
+            // 서브 타이틀 (크기 확대: clamp(1.15rem, 2.5vw, 2.1rem))
+            ctx.font = '900 clamp(1.15rem, 2.5vw, 2.1rem) "Montserrat", sans-serif';
+            ctx.fillText('WHO WOULD BE BORN MUST DESTROY A WORLD.', 50, 138);
+
+            // 중앙 계란
+            const eggWidth = Math.min(w, h) * 0.48;
+            const eggHeight = eggWidth * 1.33;
+            drawEgg(w / 2, h / 2 + 20, eggWidth, eggHeight);
+
+            // 2. 뚫리는 구멍 마스킹 처리 (destination-out)
+            ctx.globalCompositeOperation = 'destination-out';
+            for (let i = 0; i < holes.length; i++) {
+                let hole = holes[i];
+
+                if (!isPaused) {
+                    hole.x += hole.vx * globalSpeedMultiplier;
+                    hole.y += hole.vy * globalSpeedMultiplier;
+
+                    if (hole.x - hole.radius < 0 || hole.x + hole.radius > w) hole.vx *= -1;
+                    if (hole.y - hole.radius < 0 || hole.y + hole.radius > h) hole.vy *= -1;
+                }
+
+                ctx.beginPath();
+                ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 3. 2번 레이어 위에 올라가는 요소들 (source-over)
+            ctx.globalCompositeOperation = 'source-over';
+
+            // 3-1. 알록달록한 원 그리기 (테두리 없음)
+            for (let i = 0; i < colorfulCircles.length; i++) {
+                let c = colorfulCircles[i];
+
+                if (!isPaused) {
+                    c.x += c.vx * globalSpeedMultiplier;
+                    c.y += c.vy * globalSpeedMultiplier;
+
+                    if (c.x - c.radius < 0 || c.x + c.radius > w) c.vx *= -1;
+                    if (c.y - c.radius < 0 || c.y + c.radius > h) c.vy *= -1;
+                }
+
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+                ctx.fillStyle = c.color;
+                ctx.fill();
+            }
+
+            // 3-2. 파티클 애니메이션
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                if (!isPaused) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= 0.03;
+                }
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 초기화
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        requestAnimationFrame(animate);
+
+        // 클릭 이벤트 처리
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // 1. 알록달록한 원 클릭 여부 체크
+            let hitColorfulIndex = -1;
+            for (let i = colorfulCircles.length - 1; i >= 0; i--) {
+                const c = colorfulCircles[i];
+                if (Math.hypot(clickX - c.x, clickY - c.y) <= Math.max(c.radius, 10)) {
+                    hitColorfulIndex = i;
+                    break;
+                }
+            }
+
+            if (hitColorfulIndex !== -1) {
+                const target = colorfulCircles[hitColorfulIndex];
+                createParticles(target.x, target.y);
+                colorfulCircles.splice(hitColorfulIndex, 1);
+                return;
+            }
+
+            // 2. 기존 구멍 클릭 여부 체크 (분열)
+            let hitHoleIndex = -1;
+            for (let i = holes.length - 1; i >= 0; i--) {
+                const hole = holes[i];
+                if (Math.hypot(clickX - hole.x, clickY - hole.y) <= hole.radius) {
+                    hitHoleIndex = i;
+                    break;
+                }
+            }
+
+            if (hitHoleIndex !== -1) {
+                const target = holes[hitHoleIndex];
+                createParticles(target.x, target.y);
+
+                if (target.radius >= 15) {
+                    const newRadius = target.radius / 2;
+                    const speed = Math.hypot(target.vx, target.vy) || 1.5;
+                    const angle = Math.random() * Math.PI * 2;
+
+                    holes.push({
+                        x: target.x,
+                        y: target.y,
+                        radius: newRadius,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed
+                    });
+
+                    holes.push({
+                        x: target.x,
+                        y: target.y,
+                        radius: newRadius,
+                        vx: -Math.cos(angle) * speed,
+                        vy: -Math.sin(angle) * speed
+                    });
+                }
+
+                holes.splice(hitHoleIndex, 1);
+
+            } else {
+                // 3. 새로운 구멍 생성 및 알 깨지는 소리 재생
+                playEggCrackSound();
+
+                const w = canvas.width;
+                const h = canvas.height;
+                const centerX = w / 2;
+                const centerY = h / 2;
+
+                const stdDevX = w * 0.18;
+                const stdDevY = h * 0.18;
+
+                const randomX = centerX + randomGaussian() * stdDevX;
+                const randomY = centerY + randomGaussian() * stdDevY;
+                const randomRadius = Math.floor(Math.random() * 120) + 60;
+
+                const vx = (Math.random() - 0.5) * 3;
+                const vy = (Math.random() - 0.5) * 3;
+
+                holes.push({
+                    x: randomX,
+                    y: randomY,
+                    radius: randomRadius,
+                    vx: vx === 0 ? 1 : vx,
+                    vy: vy === 0 ? 1 : vy
+                });
+
+                // 5% 확률로 2번 레이어 위에 알록달록한 작은 원 5개 생성
+                if (Math.random() < 0.05) {
+                    spawnColorfulCircles(randomX, randomY);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
